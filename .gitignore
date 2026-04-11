@@ -40,7 +40,7 @@ frontend/.vite/
 # =========================
 # Dataset (IMPORTANT)
 # =========================
-backend/data/mumbai_ngos.csv   ❌ don't push
+backend/data/
 
 # =========================
 # IDE files
