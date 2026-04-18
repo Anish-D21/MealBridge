@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --dark: #0D1117;
+    --light: #FCF9F1;
+    --surface: #161B22;
+    --border: #21262D;
+    --green: #4ADE80;
+    --amber: #FBBF24;
+    --red: #F87171;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    background-color: var(--dark);
+    color: var(--light);
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--dark);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #30363D;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface border border-border rounded-2xl p-6;
+  }
+
+  .btn-primary {
+    @apply bg-green-400 text-dark font-semibold px-6 py-3 rounded-xl hover:bg-green-500 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply border border-border text-light px-6 py-3 rounded-xl hover:bg-surface transition-all duration-200 active:scale-95;
+  }
+
+  .btn-danger {
+    @apply bg-red-500/10 border border-red-500/30 text-red-400 px-6 py-3 rounded-xl hover:bg-red-500/20 transition-all duration-200;
+  }
+
+  .input {
+    @apply w-full bg-dark border border-border rounded-xl px-4 py-3 text-light placeholder-gray-500 focus:outline-none focus:border-green-400 transition-colors duration-200;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .status-available {
+    @apply badge bg-green-400/10 text-green-400 border border-green-400/20;
+  }
+  .status-reserved {
+    @apply badge bg-amber-400/10 text-amber-400 border border-amber-400/20;
+  }
+  .status-transit {
+    @apply badge bg-blue-400/10 text-blue-400 border border-blue-400/20;
+  }
+  .status-completed {
+    @apply badge bg-purple-400/10 text-purple-400 border border-purple-400/20;
+  }
+  .status-expired {
+    @apply badge bg-gray-400/10 text-gray-400 border border-gray-400/20;
+  }
+}

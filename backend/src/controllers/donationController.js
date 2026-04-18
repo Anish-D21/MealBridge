@@ -18,14 +18,19 @@ exports.createDonation = async (req, res, next) => {
       safetyDisclaimer
     } = req.body;
 
-    if (!safetyDisclaimer) {
+    if (!safetyDisclaimer || safetyDisclaimer === 'false') {
       return res.status(400).json({
         success: false,
         message: 'You must accept the food safety disclaimer.'
       });
     }
 
-    if (!coordinates || coordinates.length !== 2) {
+    let parsedCoords = coordinates;
+    if (typeof coordinates === 'string') {
+      try { parsedCoords = JSON.parse(coordinates); } catch (e) { }
+    }
+
+    if (!parsedCoords || !Array.isArray(parsedCoords) || parsedCoords.length !== 2) {
       return res.status(400).json({
         success: false,
         message: 'Location coordinates are required.'
@@ -42,7 +47,7 @@ exports.createDonation = async (req, res, next) => {
       imagePublicId: req.file?.filename || null,
       location: {
         type: 'Point',
-        coordinates: coordinates.map(Number)
+        coordinates: parsedCoords.map(Number)
       },
       ward,
       address,
