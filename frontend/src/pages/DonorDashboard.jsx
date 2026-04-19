@@ -20,6 +20,8 @@ export default function DonorDashboard() {
   const [imagePreview, setImagePreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [expandedCardId, setExpandedCardId] = useState(null);
   const fileRef = useRef();
 
   const fetchData = async () => {
@@ -32,6 +34,18 @@ export default function DonorDashboard() {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  const handleDelete = async (id, e) => {
+    e.stopPropagation();
+    if (!window.confirm('Are you sure you want to remove this donation?')) return;
+    try {
+      await api.delete(`/donations/${id}`);
+      toast.success('Donation removed.');
+      fetchData();
+    } catch {
+      toast.error('Failed to remove donation.');
+    }
+  };
 
   const handleImage = (e) => {
     const file = e.target.files[0];
@@ -103,7 +117,17 @@ export default function DonorDashboard() {
 
         {/* Donations list */}
         <div className="card">
-          <h2 className="font-semibold mb-4">My Donations</h2>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <h2 className="font-semibold">My Donations</h2>
+            <div className="flex gap-2 p-1 bg-dark rounded-lg border border-border overflow-x-auto">
+               {['ALL', 'AVAILABLE', 'RESERVED', 'IN_TRANSIT', 'COMPLETED', 'CANCELLED'].map(status => (
+                 <button key={status} onClick={() => setFilterStatus(status)}
+                   className={`px-3 py-1.5 text-xs font-medium rounded-md whitespace-nowrap transition-colors ${filterStatus === status ? 'bg-surface text-light shadow-sm' : 'text-gray-400 hover:text-gray-200'}`}>
+                   {status.replace('_', ' ')}
+                 </button>
+               ))}
+            </div>
+          </div>
           {fetching ? (
             <div className="flex justify-center py-12"><div className="w-6 h-6 border-2 border-green-400 border-t-transparent rounded-full animate-spin" /></div>
           ) : donations.length === 0 ? (
@@ -113,25 +137,79 @@ export default function DonorDashboard() {
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {donations.map((d) => (
+              {(filterStatus === 'ALL' ? donations : donations.filter(d => d.status === filterStatus)).map((d) => (
                 <motion.div key={d._id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-dark rounded-xl border border-border hover:border-gray-600 transition-colors">
-                  <div className="flex gap-3 items-start">
-                    {d.imageUrl && <img src={d.imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />}
-                    <div>
-                      <p className="font-medium text-sm">{d.foodItems}</p>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                        <span className="flex items-center gap-1"><Weight size={10} />{d.weight}kg</span>
-                        <span className="flex items-center gap-1"><Clock size={10} />Expires {new Date(d.expiryTime).toLocaleDateString()}</span>
-                        {d.ward && <span className="flex items-center gap-1"><MapPin size={10} />{d.ward}</span>}
+                  onClick={() => setExpandedCardId(expandedCardId === d._id ? null : d._id)}
+                  className="flex flex-col gap-3 p-4 bg-dark rounded-xl border border-border hover:border-gray-600 transition-colors cursor-pointer">
+                  
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex gap-3 items-start">
+                      {d.imageUrl && <img src={d.imageUrl} alt="" className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />}
+                      <div>
+                        <p className="font-medium text-sm">{d.foodItems}</p>
+                        <div className="flex flex-wrap items-center gap-3 mt-1 text-xs text-gray-500">
+                          <span className="flex items-center gap-1"><Weight size={10} />{d.weight}kg</span>
+                          <span className="flex items-center gap-1 text-amber-400/80"><Clock size={10} />Expires {new Date(d.expiryTime).toLocaleString()}</span>
+                          {d.ward && <span className="flex items-center gap-1"><MapPin size={10} />{d.ward}</span>}
+                        </div>
                       </div>
-                      {d.assignedNgo && <p className="text-xs text-blue-400 mt-1">NGO: {d.assignedNgo.name}</p>}
+                    </div>
+                    <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
+                      {d.status === 'AVAILABLE' && (
+                        <button onClick={(e) => handleDelete(d._id, e)} className="text-gray-500 hover:text-red-400 px-2 py-1 bg-red-400/5 hover:bg-red-400/10 rounded-md transition-colors text-xs flex items-center gap-1">
+                           <X size={14} /> Remove
+                        </button>
+                      )}
+                      {d.status === 'COMPLETED' && <span className="text-xs text-purple-400 font-mono">{d.mealsProvided} meals</span>}
+                      <StatusBadge status={d.status} />
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {d.status === 'COMPLETED' && <span className="text-xs text-purple-400 font-mono">{d.mealsProvided} meals</span>}
-                    <StatusBadge status={d.status} />
-                  </div>
+
+                  {/* Expanded Card Content */}
+                  <AnimatePresence>
+                     {expandedCardId === d._id && (
+                       <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                          className="overflow-hidden">
+                          <div className="mt-3 pt-3 border-t border-border grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                             <div className="bg-surface p-3 rounded-xl border border-border flex flex-col gap-1">
+                               <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Pickup Details</p>
+                               <div className="flex items-start gap-2 text-light">
+                                 <MapPin size={14} className="mt-0.5 text-gray-400 flex-shrink-0" />
+                                 <span>{d.address || 'Address not provided'} {d.ward ? `(${d.ward})` : ''}</span>
+                               </div>
+                               <p className="text-gray-400 text-xs mt-1 ml-5">Donor Phone: <span className="text-light">{d.donorId?.phone || user?.phone || 'N/A'}</span></p>
+                             </div>
+                             {(d.assignedNgo || d.assignedVolunteer) ? (
+                               <div className="bg-surface p-3 rounded-xl border border-border flex flex-col gap-2">
+                                 <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-1">Assignment</p>
+                                 {d.assignedNgo && (
+                                   <div className="text-xs">
+                                      <span className="text-blue-400 font-medium">NGO:</span> <span className="text-light">{d.assignedNgo.name}</span>
+                                      {d.assignedNgo.phone && <span className="text-gray-500 ml-1">({d.assignedNgo.phone})</span>}
+                                   </div>
+                                 )}
+                                 {d.assignedVolunteer && (
+                                   <div className="text-xs">
+                                      <span className="text-purple-400 font-medium">Volunteer:</span> <span className="text-light">{d.assignedVolunteer.name}</span>
+                                      {d.assignedVolunteer.phone && <span className="text-gray-500 ml-1">({d.assignedVolunteer.phone})</span>}
+                                   </div>
+                                 )}
+                               </div>
+                             ) : (
+                               <div className="bg-surface p-3 rounded-xl border border-border flex items-center justify-center text-xs text-gray-500 italic">
+                                 Waiting for NGO to claim...
+                               </div>
+                             )}
+                          </div>
+                          {d.description && (
+                            <div className="mt-2 text-xs text-gray-400 bg-surface p-3 rounded-xl border border-border">
+                              <span className="font-semibold uppercase tracking-wider block mb-1">Description</span>
+                              <p className="text-light">{d.description}</p>
+                            </div>
+                          )}
+                       </motion.div>
+                     )}
+                  </AnimatePresence>
                 </motion.div>
               ))}
             </div>

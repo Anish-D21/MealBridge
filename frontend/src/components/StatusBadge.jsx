@@ -6,6 +6,7 @@ const STATUS_MAP = {
   IN_TRANSIT: { cls: 'status-transit', label: 'In Transit' },
   COMPLETED: { cls: 'status-completed', label: 'Completed' },
   EXPIRED: { cls: 'status-expired', label: 'Expired' },
+  CANCELLED: { cls: 'status-expired', label: 'Cancelled' },
 };
 
 export default function StatusBadge({ status }) {

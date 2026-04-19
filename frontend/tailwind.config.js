@@ -5,10 +5,10 @@ export default {
   theme: {
     extend: {
       colors: {
-        dark: '#0D1117',
-        light: '#FCF9F1',
-        surface: '#161B22',
-        border: '#21262D',
+        dark: 'var(--bg-primary)',
+        light: 'var(--text-primary)',
+        surface: 'var(--surface-bg)',
+        border: 'var(--border-color)',
         green: {
           400: '#4ADE80',
           500: '#22C55E',

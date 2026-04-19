@@ -10,9 +10,11 @@ import StatusBadge from '../components/StatusBadge';
 export default function VolunteerDashboard() {
   const [available, setAvailable] = useState([]);
   const [myTasks, setMyTasks] = useState([]);
-  const [tab, setTab] = useState('available'); // 'available' | 'my'
+  const [tab, setTab] = useState('available'); // 'available', 'active', 'history'
   const [loading, setLoading] = useState(true);
   const [actionId, setActionId] = useState(null);
+  const [expandedCardId, setExpandedCardId] = useState(null);
+  const [otps, setOtps] = useState({});
 
   const fetchData = async () => {
     setLoading(true);
@@ -29,7 +31,8 @@ export default function VolunteerDashboard() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const acceptTask = async (id) => {
+  const acceptTask = async (id, e) => {
+    e.stopPropagation();
     setActionId(id);
     try {
       await api.patch(`/donations/${id}/accept-delivery`);
@@ -40,14 +43,17 @@ export default function VolunteerDashboard() {
     } finally { setActionId(null); }
   };
 
-  const completeTask = async (id) => {
+  const completeTask = async (id, e) => {
+    e.preventDefault();
+    e.stopPropagation();
     setActionId(id);
     try {
-      await api.patch(`/donations/${id}/complete`);
+      await api.patch(`/donations/${id}/complete`, { deliveryCode: otps[id] });
       toast.success('🎉 Delivery completed! Impact recorded.');
+      setOtps(p => { const n = {...p}; delete n[id]; return n; });
       fetchData();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Could not mark as complete.');
+      toast.error(err.response?.data?.message || 'Could not mark as complete. Code might be wrong.');
     } finally { setActionId(null); }
   };
 
@@ -78,13 +84,19 @@ export default function VolunteerDashboard() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-surface border border-border rounded-xl p-1 mb-6 w-fit">
-          {[['available', 'Available Tasks'], ['my', 'My Deliveries']].map(([val, label]) => (
+        <div className="flex gap-1 bg-surface border border-border rounded-xl p-1 mb-6 w-fit overflow-x-auto">
+          {[
+             { val: 'available', label: 'Available Tasks', count: available.length },
+             { val: 'active', label: 'Active Deliveries', count: myTasks.filter(t => t.status === 'IN_TRANSIT').length },
+             { val: 'history', label: 'History', count: totalCompleted }
+          ].map(({ val, label, count }) => (
             <button key={val} onClick={() => setTab(val)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${tab === val ? 'bg-green-400 text-dark' : 'text-gray-400 hover:text-light'}`}>
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${tab === val ? 'bg-green-400 text-dark shadow-sm' : 'text-gray-400 hover:text-light'}`}>
               {label}
-              {val === 'available' && available.length > 0 && (
-                <span className="ml-1.5 bg-dark/30 text-xs px-1.5 py-0.5 rounded-full">{available.length}</span>
+              {count > 0 && (
+                <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${tab === val ? 'bg-dark/20 text-dark' : 'bg-dark/50 text-gray-400'}`}>
+                   {count}
+                </span>
               )}
             </button>
           ))}
@@ -107,34 +119,46 @@ export default function VolunteerDashboard() {
                   <div className="flex flex-col gap-3">
                     {available.map((d, i) => (
                       <motion.div key={d._id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
-                        className="card flex flex-col sm:flex-row sm:items-center gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-semibold text-sm">{d.foodItems}</h3>
-                            <StatusBadge status={d.status} />
+                        className="card flex flex-col gap-4 cursor-pointer hover:border-gray-600 transition-colors"
+                        onClick={() => setExpandedCardId(expandedCardId === d._id ? null : d._id)}>
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-semibold text-sm">{d.foodItems}</h3>
+                              <StatusBadge status={d.status} />
+                            </div>
+                            <div className="flex flex-wrap gap-3 text-xs text-gray-500 mt-1">
+                              <span className="flex items-center gap-1"><Weight size={11} />{d.weight}kg</span>
+                              <span className="flex items-center gap-1"><Package size={11} />~{Math.floor(d.weight / 0.5)} meals</span>
+                              {d.ward && <span className="flex items-center gap-1"><MapPin size={11} />{d.ward}</span>}
+                              <span className="flex items-center gap-1"><Clock size={11} />Expiry {new Date(d.expiryTime).toLocaleDateString()}</span>
+                            </div>
                           </div>
-                          <div className="flex flex-wrap gap-3 text-xs text-gray-500 mt-1">
-                            <span className="flex items-center gap-1"><Weight size={11} />{d.weight}kg</span>
-                            <span className="flex items-center gap-1"><Package size={11} />~{Math.floor(d.weight / 0.5)} meals</span>
-                            {d.ward && <span className="flex items-center gap-1"><MapPin size={11} />{d.ward}</span>}
-                            <span className="flex items-center gap-1"><Clock size={11} />Expiry {new Date(d.expiryTime).toLocaleDateString()}</span>
-                          </div>
-                          {d.assignedNgo && (
-                            <p className="text-xs text-blue-400 mt-2 flex items-center gap-1">
-                              <Building2 size={11} /> Deliver to: {d.assignedNgo.name}
-                            </p>
-                          )}
-                          {d.donorId && (
-                            <p className="text-xs text-gray-600 mt-0.5 flex items-center gap-1">
-                              <Navigation size={11} /> Pick up from: {d.donorId.name}
-                              {d.donorId.phone && ` · ${d.donorId.phone}`}
-                            </p>
-                          )}
+                          <button onClick={(e) => acceptTask(d._id, e)} disabled={actionId === d._id}
+                            className="btn-primary text-sm whitespace-nowrap flex items-center justify-center gap-2 px-6">
+                            {actionId === d._id ? <div className="w-4 h-4 border-2 border-dark border-t-transparent rounded-full animate-spin" /> : <><Truck size={14} /> Accept Task</>}
+                          </button>
                         </div>
-                        <button onClick={() => acceptTask(d._id)} disabled={actionId === d._id}
-                          className="btn-primary text-sm whitespace-nowrap flex items-center gap-2">
-                          {actionId === d._id ? <div className="w-4 h-4 border-2 border-dark border-t-transparent rounded-full animate-spin" /> : <><Truck size={14} /> Accept Task</>}
-                        </button>
+                        
+                        {/* Expanded details */}
+                        <AnimatePresence>
+                          {expandedCardId === d._id && (
+                            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                               <div className="pt-2 border-t border-border grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mt-2">
+                                 <div className="bg-surface p-3 rounded-xl border border-border">
+                                   <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Pickup Location (Donor)</p>
+                                   <p className="text-light flex items-start gap-2 mb-1"><MapPin size={14} className="mt-0.5 text-blue-400" /> {d.donorId?.address || 'Address not provided'}</p>
+                                   <p className="ml-5 text-xs text-light">{d.donorId?.name} {d.donorId?.phone && <span className="text-gray-500 ml-1">({d.donorId.phone})</span>}</p>
+                                 </div>
+                                 <div className="bg-surface p-3 rounded-xl border border-border">
+                                   <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Dropoff Location (NGO)</p>
+                                   <p className="text-light flex items-center gap-2 mb-1"><Building2 size={14} className="text-purple-400" /> {d.assignedNgo?.name}</p>
+                                   <p className="ml-5 text-xs text-light">{d.assignedNgo?.address || 'Location on map'} {d.assignedNgo?.phone && <span className="text-gray-500 ml-1">({d.assignedNgo.phone})</span>}</p>
+                                 </div>
+                               </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </motion.div>
                     ))}
                   </div>
@@ -142,44 +166,71 @@ export default function VolunteerDashboard() {
               </motion.div>
             )}
 
-            {/* My tasks */}
-            {tab === 'my' && (
+            {/* Active and History My Tasks */}
+            {(tab === 'active' || tab === 'history') && (
               <motion.div key="my" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                {myTasks.length === 0 ? (
+                {myTasks.filter(t => tab === 'active' ? t.status === 'IN_TRANSIT' : t.status === 'COMPLETED').length === 0 ? (
                   <div className="card text-center py-16">
                     <CheckCircle size={48} className="text-gray-600 mx-auto mb-3" />
-                    <h3 className="font-semibold mb-1">No deliveries yet</h3>
-                    <p className="text-gray-500 text-sm">Accept a task to see it here.</p>
+                    <h3 className="font-semibold mb-1">No deliveries found</h3>
+                    <p className="text-gray-500 text-sm">Nothing to see here right now.</p>
                   </div>
                 ) : (
                   <div className="flex flex-col gap-3">
-                    {myTasks.map((d, i) => (
+                    {myTasks.filter(t => tab === 'active' ? t.status === 'IN_TRANSIT' : t.status === 'COMPLETED').map((d, i) => (
                       <motion.div key={d._id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
-                        className="card flex flex-col sm:flex-row sm:items-center gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-semibold text-sm">{d.foodItems}</h3>
-                            <StatusBadge status={d.status} />
+                        className="card flex flex-col gap-4 cursor-pointer hover:border-gray-600 transition-colors"
+                        onClick={() => setExpandedCardId(expandedCardId === d._id ? null : d._id)}>
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-semibold text-sm">{d.foodItems}</h3>
+                              <StatusBadge status={d.status} />
+                            </div>
+                            <div className="flex flex-wrap gap-3 text-xs text-gray-500 mt-1">
+                              <span className="flex items-center gap-1"><Weight size={11} />{d.weight}kg</span>
+                              {d.mealsProvided && <span className="flex items-center gap-1 text-purple-400"><Package size={11} />{d.mealsProvided} meals</span>}
+                              {d.co2Saved && <span className="flex items-center gap-1 text-green-400">🌱 {d.co2Saved}kg CO₂ saved</span>}
+                            </div>
+                            {d.completedAt && <p className="text-xs text-gray-500 mt-2">Delivered on: <span className="text-light">{new Date(d.completedAt).toLocaleString()}</span></p>}
                           </div>
-                          <div className="flex flex-wrap gap-3 text-xs text-gray-500">
-                            <span className="flex items-center gap-1"><Weight size={11} />{d.weight}kg</span>
-                            {d.mealsProvided && <span className="flex items-center gap-1 text-purple-400"><Package size={11} />{d.mealsProvided} meals</span>}
-                            {d.co2Saved && <span className="flex items-center gap-1 text-green-400">🌱 {d.co2Saved}kg CO₂ saved</span>}
-                          </div>
-                          {d.assignedNgo && <p className="text-xs text-blue-400 mt-1">NGO: {d.assignedNgo.name}</p>}
-                          {d.completedAt && <p className="text-xs text-gray-600 mt-0.5">Completed: {new Date(d.completedAt).toLocaleDateString()}</p>}
+                          
+                          {d.status === 'IN_TRANSIT' && (
+                            <form onSubmit={(e) => completeTask(d._id, e)} className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                              <input type="text" placeholder="NGO OTP" required value={otps[d._id] || ''} onChange={e => setOtps({...otps, [d._id]: e.target.value.trim()})}
+                                className="bg-dark border border-border rounded-lg px-3 py-2 text-sm text-light focus:outline-none focus:border-green-400 w-24 text-center tracking-widest font-mono uppercase" />
+                              <button type="submit" disabled={actionId === d._id}
+                                className="btn-primary py-2 px-4 shadow-xl text-sm whitespace-nowrap flex items-center gap-2">
+                                {actionId === d._id ? <div className="w-4 h-4 border-2 border-dark border-t-transparent rounded-full animate-spin" /> : <><CheckCircle size={14} /> Finish</>}
+                              </button>
+                            </form>
+                          )}
+                          {d.status === 'COMPLETED' && (
+                            <span className="badge bg-purple-400/10 text-purple-400 border border-purple-400/20 whitespace-nowrap h-fit">
+                              <CheckCircle size={10} /> Delivered
+                            </span>
+                          )}
                         </div>
-                        {d.status === 'IN_TRANSIT' && (
-                          <button onClick={() => completeTask(d._id)} disabled={actionId === d._id}
-                            className="btn-primary text-sm whitespace-nowrap flex items-center gap-2">
-                            {actionId === d._id ? <div className="w-4 h-4 border-2 border-dark border-t-transparent rounded-full animate-spin" /> : <><CheckCircle size={14} /> Mark Delivered</>}
-                          </button>
-                        )}
-                        {d.status === 'COMPLETED' && (
-                          <span className="badge bg-purple-400/10 text-purple-400 border border-purple-400/20 whitespace-nowrap">
-                            <CheckCircle size={10} /> Delivered
-                          </span>
-                        )}
+
+                        {/* Expanded details */}
+                        <AnimatePresence>
+                          {expandedCardId === d._id && (
+                            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                               <div className="pt-2 border-t border-border grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mt-1">
+                                 <div className="bg-surface p-3 rounded-xl border border-border">
+                                   <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Pickup Location</p>
+                                   <p className="text-light flex items-start gap-2 mb-1"><MapPin size={14} className="mt-0.5 text-blue-400 flex-shrink-0" /> {d.donorId?.address || 'Address not provided'}</p>
+                                   <p className="ml-5 text-xs text-light">{d.donorId?.name} {d.donorId?.phone && <span className="text-gray-500 ml-1">({d.donorId.phone})</span>}</p>
+                                 </div>
+                                 <div className="bg-surface p-3 rounded-xl border border-border">
+                                   <p className="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Dropoff Location</p>
+                                   <p className="text-light flex items-center gap-2 mb-1"><Building2 size={14} className="text-purple-400 flex-shrink-0" /> {d.assignedNgo?.name}</p>
+                                   <p className="ml-5 text-xs text-light">{d.assignedNgo?.address || 'Location on map'} {d.assignedNgo?.phone && <span className="text-gray-500 ml-1">({d.assignedNgo.phone})</span>}</p>
+                                 </div>
+                               </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </motion.div>
                     ))}
                   </div>

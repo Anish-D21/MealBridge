@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Menu, X, Leaf } from 'lucide-react';
+import { LogOut, Menu, X, Leaf, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -15,6 +15,18 @@ export default function Navbar({ links = [] }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
+
+  useEffect(() => {
+    if (theme === 'light') {
+      document.body.classList.add('light');
+    } else {
+      document.body.classList.remove('light');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(t => t === 'light' ? 'dark' : 'light');
 
   const handleLogout = () => {
     logout();
@@ -48,6 +60,9 @@ export default function Navbar({ links = [] }) {
             <p className="text-sm font-medium text-light">{user?.name}</p>
             <p className={`text-xs font-mono ${ROLE_COLORS[user?.role]}`}>{user?.role}</p>
           </div>
+          <button onClick={toggleTheme} className="p-2 text-gray-400 hover:text-light transition-colors rounded-lg">
+            {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+          </button>
           <button onClick={handleLogout} className="flex items-center gap-2 text-gray-400 hover:text-red-400 transition-colors p-2 rounded-lg hover:bg-red-400/10">
             <LogOut size={16} />
           </button>
