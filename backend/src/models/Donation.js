@@ -16,11 +16,12 @@ const donationSchema = new mongoose.Schema({
   address: { type: String },
   status: {
     type: String,
-    enum: ['AVAILABLE', 'RESERVED', 'IN_TRANSIT', 'COMPLETED', 'EXPIRED'],
+    enum: ['AVAILABLE', 'RESERVED', 'IN_TRANSIT', 'COMPLETED', 'EXPIRED', 'CANCELLED'],
     default: 'AVAILABLE',
   },
   assignedNgo: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   assignedVolunteer: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  deliveryCode: { type: String },
   reservedAt: { type: Date },
   completedAt: { type: Date },
   // Computed impact

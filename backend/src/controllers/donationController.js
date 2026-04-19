@@ -135,8 +135,9 @@ exports.getMyDonations = async (req, res, next) => {
     const donations = await Donation.find({
       donorId: req.user._id
     })
-      .populate('assignedNgo', 'name')
-      .populate('assignedVolunteer', 'name')
+      .populate('donorId', 'phone')
+      .populate('assignedNgo', 'name phone')
+      .populate('assignedVolunteer', 'name phone')
       .sort({ createdAt: -1 });
 
     res.json({
@@ -165,7 +166,9 @@ exports.reserveDonation = async (req, res, next) => {
       });
     }
 
-    // ✅ ATOMIC CLAIM + EXPIRY CHECK
+    // ✅ ATOMIC CLAIM + EXPIRY CHECK (Add OTP)
+    const deliveryCode = Math.floor(100000 + Math.random() * 900000).toString();
+
     const donation = await Donation.findOneAndUpdate(
       {
         _id: id,
@@ -175,10 +178,11 @@ exports.reserveDonation = async (req, res, next) => {
       {
         status: 'RESERVED',
         assignedNgo: req.user._id,
-        reservedAt: new Date()
+        reservedAt: new Date(),
+        deliveryCode
       },
       { new: true }
-    ).populate('donorId', 'name phone');
+    ).populate('donorId', 'name phone address ward');
 
 
     if (!donation) {
@@ -266,25 +270,41 @@ exports.acceptDelivery = async (req, res, next) => {
 // ===============================
 exports.completeDonation = async (req, res, next) => {
   try {
-    const donation = await Donation.findOneAndUpdate(
-      {
+    const { deliveryCode } = req.body;
+
+    if (!deliveryCode) {
+      return res.status(400).json({ success: false, message: 'Delivery code is required.' });
+    }
+
+    const donationCheck = await Donation.findOne({
         _id: req.params.id,
         status: 'IN_TRANSIT',
         assignedVolunteer: req.user._id
-      },
+    });
+
+    if (!donationCheck) {
+      return res.status(409).json({ success: false, message: 'Cannot complete this donation or it is not assigned to you.' });
+    }
+
+    const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000);
+    if (new Date(donationCheck.expiryTime) <= oneHourFromNow) {
+      donationCheck.status = 'CANCELLED';
+      await donationCheck.save();
+      return res.status(400).json({ success: false, message: 'This donation is within 1 hour of expiry and has been automatically cancelled for safety.' });
+    }
+
+    if (donationCheck.deliveryCode !== deliveryCode) {
+      return res.status(400).json({ success: false, message: 'Invalid delivery code. Please check with the NGO.' });
+    }
+
+    const donation = await Donation.findOneAndUpdate(
+      { _id: req.params.id },
       {
         status: 'COMPLETED',
         completedAt: new Date()
       },
       { new: true }
     );
-
-    if (!donation) {
-      return res.status(409).json({
-        success: false,
-        message: 'Cannot complete this donation.'
-      });
-    }
 
     // ✅ IMPACT CALCULATION
     const meals = Math.floor(donation.weight / 0.5);
@@ -338,6 +358,7 @@ exports.getGlobalStats = async (req, res, next) => {
   }
 };
 
+
 // ===============================
 // 🚚 VOLUNTEER TASKS
 // ===============================
@@ -354,6 +375,65 @@ exports.getMyTasks = async (req, res, next) => {
     res.json({
       success: true,
       tasks
+    });
+
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+// ===============================
+// 🗑️ DELETE DONATION (DONOR ONLY - SOFT DELETE)
+// ===============================
+exports.deleteDonation = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const donation = await Donation.findOne({ _id: id, donorId: req.user._id });
+
+    if (!donation) {
+      return res.status(404).json({
+        success: false,
+        message: 'Donation not found.'
+      });
+    }
+
+    if (donation.status !== 'AVAILABLE') {
+      return res.status(400).json({
+        success: false,
+        message: 'You can only remove available donations.'
+      });
+    }
+
+    donation.status = 'CANCELLED';
+    await donation.save();
+
+    res.json({
+      success: true,
+      message: 'Donation removed successfully.',
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ===============================
+// 🏫 GET NGO CLAIMS (NGO)
+// ===============================
+exports.getNgoClaims = async (req, res, next) => {
+  try {
+    const claims = await Donation.find({
+      assignedNgo: req.user._id,
+      status: { $in: ['RESERVED', 'IN_TRANSIT', 'COMPLETED'] }
+    })
+      .populate('donorId', 'name phone address ward')
+      .populate('assignedVolunteer', 'name phone')
+      .sort({ updatedAt: -1 });
+
+    res.json({
+      success: true,
+      claims
     });
 
   } catch (err) {

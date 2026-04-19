@@ -24,10 +24,12 @@ router.use(protect);
 // Donor
 router.post('/', requireRole('DONOR'), upload.single('image'), createDonation);
 router.get('/my', requireRole('DONOR'), getMyDonations);
+router.delete('/:id', requireRole('DONOR'), exports.deleteDonation ? exports.deleteDonation : require('../controllers/donationController').deleteDonation);
 
 // NGO
 router.get('/nearby', requireVerifiedNGO, getNearbyDonations);
 router.patch('/:id/reserve', requireVerifiedNGO, reserveDonation);
+router.get('/ngo/claims', requireVerifiedNGO, exports.getNgoClaims ? exports.getNgoClaims : require('../controllers/donationController').getNgoClaims);
 
 // Volunteer
 router.get('/reserved', requireRole('VOLUNTEER'), getReservedDonations);
